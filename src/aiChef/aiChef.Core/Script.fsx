@@ -11,6 +11,7 @@ open aiChef.Core
 open Newtonsoft.Json
 open FSharp.Data
 open System.IO
+open System.Text.RegularExpressions
 
 // Using Newtonsoft.Json
 type Recipe = {
@@ -24,10 +25,55 @@ type Recipe = {
     prepTime : string
     description : string
 }
+type TokenKinds = 
+    | Numeric
+    | Measurement
+    | Quality
+    | Food
+
+type TokenProbability = {
+    pNumeric : int
+    pMeasurement : int
+    pQuality : int
+    pFood : int
+}
+
+let knownFoods = File.ReadAllLines(@"C:\Users\Amadeus\Documents\GitHub\aiChef\data\food.txt")
+let knownMeasurements = File.ReadAllLines(@"C:\Users\Amadeus\Documents\GitHub\aiChef\data\measurements.txt")
 let rawRecipes = File.ReadAllLines(@"C:\Users\Amadeus\Documents\GitHub\aiChef\data\openrecipes.json")
+
 let recipes = rawRecipes |> Seq.map(fun (x) -> JsonConvert.DeserializeObject<Recipe>(x))
-let allIngredients = recipes |> Seq.map(fun (x) -> x.ingredients.Split('\n'))
-let ingredientTokens = allIngredients |> Seq.map(fun (x) -> x |> Seq.map(fun (y) -> y.Split(' ')))
+
+let matchWords = Regex(@"\w+")
+let getTokens (text:string) = 
+ text.ToLowerInvariant()
+ |> matchWords.Matches
+ |> Seq.cast<Match>
+ |> Seq.map(fun m -> m.Value)
+
+let getProbabilities token
+
+let propagateProbabilities tokens
+
+let processTokens tokens =
+    let chainLength = Seq.length tokens
+    printfn "%i %A" chainLength (Seq.toList tokens)
+    tokens
+
+let sampleTokens = ["12"; "whole"; "hard"; "boiled"; "eggs"]
+processTokens sampleTokens
+
+let processRecipes (recipe:Recipe) =
+    let individualIngredients = recipe.ingredients.Split('\n')
+    let individualTokens = 
+     individualIngredients 
+     |> Array.map(fun ingredient -> getTokens ingredient)
+     |> Array.map(fun tokens -> processTokens tokens)
+    individualTokens
+
+
+let allIngredients = recipes |> Seq.map(fun (x) -> processRecipes x) 
+let ingredientTokens = allIngredients |> Seq.map(fun ingredientsLine -> getTokens ingredients)
 let ingredientData = processAllIngredientTokens ingredientTokens
 
 def processAllIngredientTokens
