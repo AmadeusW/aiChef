@@ -39,29 +39,54 @@ type TokenProbability = {
 }
 
 let knownFoods = File.ReadAllLines(@"C:\Users\Amadeus\Documents\GitHub\aiChef\data\food.txt")
-let knownMeasurements = File.ReadAllLines(@"C:\Users\Amadeus\Documents\GitHub\aiChef\data\measurements.txt")
+let knownMeasurements = Array.toSeq(File.ReadAllLines(@"C:\Users\Amadeus\Documents\GitHub\aiChef\data\measurements.txt"))
 let rawRecipes = File.ReadAllLines(@"C:\Users\Amadeus\Documents\GitHub\aiChef\data\openrecipes.json")
 
 let recipes = rawRecipes |> Seq.map(fun (x) -> JsonConvert.DeserializeObject<Recipe>(x))
 
-let matchWords = Regex(@"\w+")
+let matchWords = Regex(@"[A-Za-z0-9_/]+") // w with extra /
 let getTokens (text:string) = 
  text.ToLowerInvariant()
  |> matchWords.Matches
  |> Seq.cast<Match>
  |> Seq.map(fun m -> m.Value)
 
-let getProbabilities token
-
-let propagateProbabilities tokens
+let handleToken (index:int) (token:string) (array:int[,]) =
+    printfn "Token %s at position %i" token index
+    match token with 
+    // Factor
+    | token when Regex.IsMatch(token, @"\d+/\d+") -> printfn "position %i contains a factor" index; ignore(array.[0,index] <- array.[0,index] + 100); ignore(array.[1,index+1] <- array.[1,index+1] + 10);
+    // Decimal
+    | token when Regex.IsMatch(token, @"\d+.\d+") -> printfn "position %i contains a decimal" index; ignore(array.[0,index] <- array.[0,index] + 100); ignore(array.[1,index+1] <- array.[1,index+1] + 10);
+    // Integer
+    | token when Regex.IsMatch(token, @"\d+") -> printfn "position %i contains a number" index; ignore(array.[0,index] <- array.[0,index] + 100); ignore(array.[1,index+1] <- array.[1,index+1] + 10);
+    // Known measurement
+    | token when Seq.exists (fun x -> x = token) knownMeasurements -> printfn "position %i contains a known measurement" index; ignore(array.[1, index] <- array.[1, index] + 100); ignore(array.[0, index-1] <- array.[0,index-1] + 20);
+    // Known food
+    | token when Seq.exists (fun x -> x = token.TrimEnd('s')) knownFoods -> printfn "position %i contains a known food" index; ignore(array.[3, index] <- array.[3, index] + 100); ignore(array.[2, index-1] <- array.[2,index-1] +  10);
+    | _ -> printfn "position %i couldn't be matched" index
+    ()
 
 let processTokens tokens =
     let chainLength = Seq.length tokens
-    printfn "%i %A" chainLength (Seq.toList tokens)
+    let probabilities = Array2D.zeroCreate<int> 4 chainLength
+    tokens |> Seq.iteri (fun i x -> handleToken i x probabilities)
+    printfn "%A" probabilities
+    for index = 0 to chainLength do
+        printfn "%A" probabilities
     tokens
 
 let sampleTokens = ["12"; "whole"; "hard"; "boiled"; "eggs"]
 processTokens sampleTokens
+
+let matchNumbers = Regex(@"d+")
+let matchFractions = Regex(@"d+/d+")
+let getScoreForNumbers (text:string) = 
+ text.ToLowerInvariant()
+ |> matchWords.Matches
+ |> Seq.cast<Match>
+ |> Seq.map(fun m -> m.Value)
+
 
 let processRecipes (recipe:Recipe) =
     let individualIngredients = recipe.ingredients.Split('\n')
@@ -73,6 +98,7 @@ let processRecipes (recipe:Recipe) =
 
 
 let allIngredients = recipes |> Seq.map(fun (x) -> processRecipes x) 
+allIngredients;;
 let ingredientTokens = allIngredients |> Seq.map(fun ingredientsLine -> getTokens ingredients)
 let ingredientData = processAllIngredientTokens ingredientTokens
 
